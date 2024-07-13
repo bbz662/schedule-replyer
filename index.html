@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シュッとスケジュールお返事マン</title>
+</head>
+
+<body>
+    <h1>シュッとスケジュールお返事マン</h1>
+    <form id="textForm">
+        <label for="apiKey">APIキー:</label><br>
+        <input type="password" id="apiKey" required><br><br>
+
+        <label for="inputText">処理するテキスト:</label><br>
+        <textarea id="inputText" rows="4" cols="50" required></textarea><br>
+
+        <button type="submit">処理</button>
+    </form>
+    <div id="selectableDate"></div>
+    <div id="result"></div>
+
+    <div id="loading" style="display: none;">Processing...</div>
+    <div id="error" style="color: red;"></div>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@google/generative-ai": "https://esm.run/@google/generative-ai"
+          }
+        }
+      </script>
+    <script type="module">
+        import { GoogleGenerativeAI } from "@google/generative-ai";
+        document.getElementById('textForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const apiKey = document.getElementById('apiKey').value;
+            const inputText = document.getElementById('inputText').value;
+            const result = document.getElementById('result');
+            const selectableDate = document.getElementById('selectableDate');
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').textContent = '';
+
+            try {
+                const dates = await getDateFromMessage(apiKey, inputText);
+                const selectable = await getSelectableDate(apiKey, dates);
+                selectableDate.textContent = selectable;
+                const reply = await makeReply(apiKey, selectable, inputText)
+                result.textContent = reply;
+            } catch (error) {
+                document.getElementById('error').textContent = `Error: ${error.message}`;
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+
+        async function getDateFromMessage(apiKey, inputText) {
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({
+                model: "gemini-1.5-flash",
+                generationConfig: { responseMimeType: "application/json" }
+            });
+
+            const prompt = `
+          Extract all date as JST from the following text:
+          ${inputText}
+      
+          Use the following JSON schema for your response:
+          {
+            "type": "object",
+            "properties": {
+              "dates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "date": { "type": "string" },
+                  }
+                }
+              }
+            }
+          }`;
+
+            const result = await model.generateContent(prompt);
+            const response = result.response;
+            const text = response.text();
+
+            return JSON.parse(text);
+        }
+
+        async function getSelectableDate(apiKey, dates) {
+            // TODO: Implement this function
+            // This function should return an array of dates that are selectable
+            // You can use the dates array to generate the prompt for the model
+            // call google calendar api or something
+            return dates;
+        }
+
+        async function makeReply(apiKey, selectableDate, inputText) {
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({
+                model: "gemini-1.5-flash",
+            });
+
+            const prompt = `
+          Make really polite reply to the following text:
+          ${inputText}
+
+          Your acceptable date is:
+          ${selectableDate}
+          
+          Reply in Japanese.
+          `;
+
+            const result = await model.generateContent(prompt);
+            const response = result.response;
+            const text = response.text();
+
+            return JSON.parse(text);
+        }
+    </script>
+</body>
+
+</html>
